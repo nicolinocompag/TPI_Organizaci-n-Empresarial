@@ -10,7 +10,7 @@ Bot de Alta de Proveedores
 Es un bot conversacional, que corre por consola (terminal), que
 guía al usuario paso a paso para registrar el alta de un nuevo
 proveedor. El bot pide los datos uno por uno, los valida, y al
-final del proceso decide automáticamente (o deriva a un gerente)
+final del proceso deriva a un gerente.
 si el proveedor queda APROBADO, RECHAZADO o DERIVADO, guardando
 el resultado en un archivo CSV.
 
