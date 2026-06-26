@@ -1,0 +1,188 @@
+==================================================================
+DICCIONARIO DE DATOS
+Bot de Alta de Proveedores
+==================================================================
+
+Este documento describe todas las variables, constantes y entidades
+de datos manejadas por el sistema, organizadas por módulo.
+
+
+------------------------------------------------------------------
+1. ENTIDAD PRINCIPAL: PROVEEDOR
+------------------------------------------------------------------
+
+Representa a un proveedor que pasa por el proceso de alta. Sus datos
+se van completando a lo largo de la conversación (en main.py) y se
+persisten en el archivo CSV (en persistencia.py).
+
+  Campo                     | Tipo    | Descripción
+  --------------------------|---------|---------------------------------------------------
+  id_proveedor              | int     | Identificador único, autogenerado de forma
+                            |         | secuencial (cantidad de filas existentes + 1).
+  razon_social              | str     | Nombre/razón social del proveedor. Debe tener
+                            |         | como mínimo 2 caracteres (sin contar espacios).
+  cuit                      | str     | CUIT/CUIL del proveedor. Se acepta con o sin
+                            |         | guiones (ej. "20-12345678-6" o "20123456789").
+                            |         | Se valida formato y dígito verificador.
+  rubro                     | str     | Rubro o actividad del proveedor. Debe tener
+                            |         | como mínimo 3 caracteres.
+  monto_mensual_estimado    | float   | Monto mensual estimado de operación, en pesos.
+                            |         | Debe ser un número positivo (> 0).
+  estado                    | str     | Resultado final del proceso para ese proveedor.
+                            |         | Valores posibles: "APROBADO", "RECHAZADO",
+                            |         | "DERIVADO".
+  fecha_alta                | str     | Fecha y hora de registro, formato
+                            |         | "YYYY-MM-DD HH:MM" (generada automáticamente
+                            |         | con datetime.now()).
+
+
+------------------------------------------------------------------
+2. VARIABLES DE CONTROL DEL FLUJO (main.py)
+------------------------------------------------------------------
+
+  Variable        | Tipo        | Descripción
+  -----------------|------------|---------------------------------------------------
+  estado_actual    | str        | Estado actual de la máquina de estados. Toma como
+                   |            | valor una de las constantes definidas en estados.py.
+                   |            | Controla el bucle principal (while) del programa.
+  razon_social     | str / None | Razón social ingresada por el usuario. Se
+                   |            | inicializa en None y se completa en el estado
+                   |            | INGRESO_RAZON_SOCIAL.
+  cuit             | str / None | CUIT ingresado por el usuario (texto crudo, tal
+                   |            | como lo tipeó, antes de limpiar guiones).
+  rubro            | str / None | Rubro ingresado por el usuario.
+  monto            | float/None | Monto mensual estimado, ya convertido a número
+                   |            | (float) tras pasar la validación.
+  intentos_cuit    | int        | Contador de intentos fallidos de validación de
+                   |            | CUIT. Se reinicia en 0 cuando el CUIT es válido.
+  entrada          | str        | Variable temporal que guarda lo que el usuario
+                   |            | tipea en cada input(), antes de validarlo.
+
+
+------------------------------------------------------------------
+3. CONSTANTES DE ESTADO (estados.py)
+------------------------------------------------------------------
+
+Cada constante es un string fijo que identifica un nodo del diagrama
+BPMN. Se usan en lugar de tipear el texto "a mano" para evitar
+errores de tipeo entre distintas partes del código.
+
+  Constante                      | Valor (string)                 | Significado
+  --------------------------------|--------------------------------|--------------------------------------------------
+  INICIO                          | "INICIO"                        | Estado inicial, muestra el mensaje de bienvenida.
+  INGRESO_RAZON_SOCIAL            | "INGRESO_RAZON_SOCIAL"          | Solicita la razón social al usuario.
+  INGRESO_CUIT                    | "INGRESO_CUIT"                  | Solicita el CUIT/CUIL al usuario.
+  VALIDANDO_CUIT                  | "VALIDANDO_CUIT"                | Gateway 1: valida formato y dígito verificador.
+  DERIVADO                        | "DERIVADO"                      | CUIT inválido tras agotar intentos, o CUIT ya
+                                  |                                  | registrado. Se deriva el caso a Compras.
+  INGRESO_RUBRO                   | "INGRESO_RUBRO"                 | Solicita el rubro del proveedor.
+  INGRESO_MONTO                   | "INGRESO_MONTO"                 | Solicita el monto mensual estimado.
+  VALIDANDO_MONTO                 | "VALIDANDO_MONTO"               | Gateway 2: evalúa si supera el límite.
+  APROBACION_DIRECTA              | "APROBACION_DIRECTA"            | Monto ≤ límite: pasa directo a APROBADO.
+  PENDIENTE_APROBACION_GERENTE    | "PENDIENTE_APROBACION_GERENTE"  | Monto > límite: requiere decisión del gerente.
+  APROBADO                        | "APROBADO"                      | Alta aprobada. Se persiste y finaliza.
+  RECHAZADO                       | "RECHAZADO"                     | Alta rechazada por el gerente. Se persiste y
+                                  |                                  | finaliza.
+  REGISTRO_BASE_DATOS             | "REGISTRO_BASE_DATOS"           | Estado definido para representar el guardado en
+                                  |                                  | la base de datos (en la versión actual, el
+                                  |                                  | guardado ocurre directamente dentro de los
+                                  |                                  | estados APROBADO/RECHAZADO/DERIVADO).
+  FIN                             | "FIN"                            | Estado final. Corta el bucle while del programa.
+
+
+------------------------------------------------------------------
+4. CONSTANTES DE NEGOCIO (estados.py)
+------------------------------------------------------------------
+
+  Constante                          | Tipo | Valor    | Descripción
+  ------------------------------------|------|----------|-------------------------------------------------
+  MAX_INTENTOS_CUIT                   | int  | 3        | Cantidad máxima de intentos permitidos para
+                                      |      |          | ingresar un CUIT válido (Gateway 1) antes de
+                                      |      |          | derivar el caso.
+  LIMITE_MONTO_APROBACION_DIRECTA     | int  | 500000   | Monto mensual (en pesos) que define el
+                                      |      |          | Gateway 2: por debajo o igual, aprobación
+                                      |      |          | directa; por encima, requiere al gerente.
+
+
+------------------------------------------------------------------
+5. VARIABLES Y FUNCIONES DE VALIDACIÓN (validaciones.py)
+------------------------------------------------------------------
+
+  Elemento                    | Tipo / Firma                          | Descripción
+  -----------------------------|---------------------------------------|-------------------------------------------------
+  validar_cuit(cuit)           | str -> bool                           | Valida formato (11 dígitos, con o sin guiones)
+                               |                                        | y dígito verificador (algoritmo módulo 11).
+  validar_rubro(rubro)         | str -> bool                           | True si el rubro tiene 3 o más caracteres
+                               |                                        | (sin contar espacios al inicio/fin).
+  validar_monto(monto_str)     | str -> (bool, float|None)             | Intenta convertir el string a float (acepta
+                               |                                        | coma decimal). Devuelve (True, monto) si es
+                               |                                        | válido y positivo, o (False, None) si no.
+  requiere_aprobacion_gerente  | float -> bool                         | True si el monto supera
+  (monto)                      |                                        | LIMITE_MONTO_APROBACION_DIRECTA.
+  validar_razon_social(rs)     | str -> bool                           | True si la razón social tiene 2 o más
+                               |                                        | caracteres (sin contar espacios).
+
+  Variables internas de validar_cuit:
+  cuit_limpio       | str        | CUIT sin guiones y sin espacios.
+  multiplicadores   | list[int]  | Coeficientes fijos [5,4,3,2,7,6,5,4,3,2] usados
+                    |            | en el algoritmo del dígito verificador.
+  digitos           | list[int]  | Cada carácter del CUIT convertido a int.
+  suma              | int        | Sumatoria de dígitos × multiplicadores.
+  resto             | int        | Resto de la división de "suma" por 11.
+  digito_verificador_calculado | int | Dígito verificador calculado a partir del resto.
+
+
+------------------------------------------------------------------
+6. VARIABLES Y FUNCIONES DE PERSISTENCIA (persistencia.py)
+------------------------------------------------------------------
+
+  Elemento              | Tipo / Firma                              | Descripción
+  ------------------------|--------------------------------------------|-------------------------------------------------
+  RUTA_ARCHIVO            | str                                        | Ruta absoluta al archivo CSV
+                          |                                            | (../data/proveedores.csv relativo al módulo).
+  ENCABEZADOS             | list[str]                                 | Lista de columnas del CSV: id_proveedor,
+                          |                                            | razon_social, cuit, rubro,
+                          |                                            | monto_mensual_estimado, estado, fecha_alta.
+  inicializar_csv()       | () -> None                                | Crea el archivo CSV con encabezados si no
+                          |                                            | existe todavía.
+  _siguiente_id()         | () -> int                                 | Calcula el próximo id_proveedor (cantidad de
+                          |                                            | filas existentes + 1). Función "privada"
+                          |                                            | (prefijo _).
+  guardar_proveedor(...)  | (str, str, str, float, str) -> int        | Agrega una fila nueva al CSV y devuelve el
+                          |                                            | id_proveedor asignado.
+  leer_proveedores()      | () -> list[list[str]]                     | Devuelve todas las filas del CSV (sin el
+                          |                                            | encabezado). Lista vacía si el archivo no
+                          |                                            | existe.
+  existe_proveedor(cuit)  | str -> bool                               | True si ya existe una fila con ese CUIT
+                          |                                            | (comparando el campo limpio, sin guiones).
+
+  Variables internas:
+  proveedores   | list[list[str]] | Resultado de leer_proveedores(), usado para
+                |                  | calcular el siguiente ID o buscar un CUIT.
+  id_proveedor  | int              | ID calculado para la nueva fila a insertar.
+  fecha_alta    | str              | Timestamp de alta, generado al guardar.
+  fila          | list             | Lista con los 7 valores que se escriben en el
+                |                  | CSV como una nueva fila.
+  cuit_limpio   | str              | CUIT sin guiones, usado para comparar contra
+                |                  | el CSV en existe_proveedor().
+
+
+------------------------------------------------------------------
+7. ARCHIVO DE PERSISTENCIA: proveedores.csv
+------------------------------------------------------------------
+
+Ubicación: ../data/proveedores.csv (relativo a persistencia.py)
+Formato: CSV con encabezado, codificación UTF-8.
+
+  Columna                  | Tipo   | Ejemplo
+  --------------------------|--------|---------------------------------
+  id_proveedor              | int    | 1
+  razon_social              | str    | "Ferretería Don José"
+  cuit                      | str    | "20123456786"
+  rubro                     | str    | "Ferretería"
+  monto_mensual_estimado    | float  | 350000.0
+  estado                    | str    | "APROBADO"
+  fecha_alta                | str    | "2026-06-25 14:32"
+
+Nota: se registran TODOS los casos (APROBADO, RECHAZADO y DERIVADO)
+para mantener trazabilidad completa del proceso.

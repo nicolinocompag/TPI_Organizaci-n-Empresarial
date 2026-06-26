@@ -1,0 +1,153 @@
+==================================================================
+MANUAL DE USUARIO
+Bot de Alta de Proveedores
+==================================================================
+
+------------------------------------------------------------------
+1. ¿QUÉ ES ESTE PROGRAMA?
+------------------------------------------------------------------
+
+Es un bot conversacional, que corre por consola (terminal), que
+guía al usuario paso a paso para registrar el alta de un nuevo
+proveedor. El bot pide los datos uno por uno, los valida, y al
+final del proceso decide automáticamente (o deriva a un gerente)
+si el proveedor queda APROBADO, RECHAZADO o DERIVADO, guardando
+el resultado en un archivo CSV.
+
+
+------------------------------------------------------------------
+2. CÓMO EJECUTAR EL PROGRAMA
+------------------------------------------------------------------
+
+Desde la terminal, ubicado en la carpeta del proyecto, ejecutar:
+
+    python src/main.py
+
+El programa va a mostrar un mensaje de bienvenida y va a empezar a
+pedir los datos automáticamente.
+
+
+------------------------------------------------------------------
+3. COMANDO ESPECIAL: "salir"
+------------------------------------------------------------------
+
+En cualquier momento en que el bot te pida un dato (razón social,
+CUIT, rubro o monto), podés escribir:
+
+    salir
+
+Esto cancela el proceso de alta inmediatamente, sin guardar ningún
+dato, y termina el programa.
+
+
+------------------------------------------------------------------
+4. FLUJO PASO A PASO (qué te va a pedir el bot, en orden)
+------------------------------------------------------------------
+
+  PASO 1 — Razón social
+  ------------------------------------------------------------
+  Pregunta: "Ingrese razón social:"
+  Qué ingresar: el nombre/razón social del proveedor.
+  Regla de validación: mínimo 2 caracteres.
+  Si está mal: el bot te avisa y te lo vuelve a pedir.
+
+  PASO 2 — CUIT/CUIL
+  ------------------------------------------------------------
+  Pregunta: "Ingrese CUIT/CUIL (formato: 20-12345678-6):"
+  Qué ingresar: el CUIT o CUIL, con o sin guiones.
+    Ejemplos válidos en formato: "20-12345678-6" o "20123456786"
+  Regla de validación: 11 dígitos + dígito verificador correcto
+  (algoritmo módulo 11).
+  Intentos: tenés un máximo de 3 intentos.
+    - Si te equivocás, el bot te dice cuántos intentos te quedan.
+    - Si agotás los 3 intentos, el caso se DERIVA automáticamente
+      al Departamento de Compras y el proceso termina ahí.
+  Caso especial: si el CUIT ya está registrado como proveedor,
+  el caso también se DERIVA (no se permite duplicar altas).
+
+  PASO 3 — Rubro
+  ------------------------------------------------------------
+  Pregunta: "Ingrese rubro del proveedor:"
+  Qué ingresar: el rubro o actividad del proveedor (ej:
+  "Ferretería", "Servicios informáticos", etc.)
+  Regla de validación: mínimo 3 caracteres.
+
+  PASO 4 — Monto mensual estimado
+  ------------------------------------------------------------
+  Pregunta: "Ingrese monto mensual estimado de operación ($):"
+  Qué ingresar: un número positivo. Se acepta coma o punto
+  decimal (ej: "350000" o "350000,50").
+  Regla de validación: tiene que ser un número mayor a 0. Si
+  ingresás texto o un número inválido, el bot te lo vuelve a
+  pedir sin romperse.
+
+  PASO 5 — Evaluación automática del monto (Gateway 2)
+  ------------------------------------------------------------
+  El bot compara el monto ingresado contra el límite de
+  $500.000:
+    - Si el monto es MENOR O IGUAL a $500.000:
+        → Aprobación directa, automática.
+    - Si el monto es MAYOR a $500.000:
+        → Pasa a "pendiente de aprobación del gerente".
+
+  PASO 6 — Decisión del gerente (solo si el monto > $500.000)
+  ------------------------------------------------------------
+  Pregunta: "[Simulación] Gerente, ¿aprueba el alta? (S/N):"
+  Qué ingresar: "S" para aprobar, cualquier otra cosa se toma
+  como rechazo.
+  (Esto simula la intervención de un gerente real dentro del
+  diagrama BPMN del proceso.)
+
+
+------------------------------------------------------------------
+5. POSIBLES RESULTADOS FINALES
+------------------------------------------------------------------
+
+  Resultado    | Cuándo ocurre
+  --------------|------------------------------------------------------
+  APROBADO      | El monto fue ≤ $500.000 (aprobación directa), o el
+               | gerente respondió "S" cuando el monto fue mayor.
+  RECHAZADO     | El gerente respondió algo distinto de "S" cuando el
+               | monto fue mayor a $500.000.
+  DERIVADO      | Se agotaron los 3 intentos de CUIT inválido, o el
+               | CUIT ya estaba registrado previamente.
+
+En los tres casos, el bot muestra un mensaje final indicando el
+resultado y (cuando corresponde) el ID asignado al proveedor.
+
+
+------------------------------------------------------------------
+6. ¿DÓNDE QUEDAN GUARDADOS LOS DATOS?
+------------------------------------------------------------------
+
+Todos los casos (APROBADO, RECHAZADO y DERIVADO) se guardan en el
+archivo:
+
+    data/proveedores.csv
+
+Cada fila guarda: ID, razón social, CUIT, rubro, monto, estado
+final y fecha/hora de alta. Esto permite mantener un historial
+completo de todos los proveedores que pasaron por el proceso.
+
+
+------------------------------------------------------------------
+7. PREGUNTAS FRECUENTES
+------------------------------------------------------------------
+
+  ¿Puedo poner el CUIT con o sin guiones?
+  Sí, ambos formatos son aceptados ("20-12345678-6" o "20123456786").
+
+  ¿Qué pasa si me equivoco escribiendo el monto (ej: pongo letras)?
+  El bot no se rompe: te avisa que el monto es inválido y te lo
+  vuelve a pedir.
+
+  ¿Puedo cancelar a mitad de proceso?
+  Sí, escribiendo "salir" en cualquier paso donde se te pida un
+  dato.
+
+  ¿Qué pasa si el CUIT que ingreso ya fue registrado antes?
+  El sistema lo detecta automáticamente y deriva el caso al
+  Departamento de Compras, para evitar altas duplicadas.
+
+  ¿Cuántas veces puedo equivocarme con el CUIT?
+  Hasta 3 intentos. Al cuarto error, se deriva el caso.
